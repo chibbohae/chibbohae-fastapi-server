@@ -63,9 +63,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             # 통화 수락 (Call Answer)
             elif message_type == "call_answer":
                 caller_id = data.get("caller_id")
-                call_id = data.get("call_id")
 
-                response_data.update({"caller_id": caller_id, "call_id": call_id})
+                response_data.update({"caller_id": caller_id})
 
                 if caller_id in active_connections:
                     await active_connections[caller_id].send_json(response_data)
@@ -79,8 +78,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
             # 통화 종료 (Call End)
             elif message_type == "call_end":
-                call_id = data.get("call_id")
+                caller_id = data.get("caller_id")
                 receiver_id = data.get("receiver_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
                 response_data.update({"call_id": call_id})
 
                 if receiver_id in active_connections:
@@ -109,7 +109,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     )
                     continue
 
-                receiver_id = data.get("receiver_id")
                 response_data.update({"call_id": call_id})
                 if receiver_id in active_connections:
                     await active_connections[receiver_id].send_json(response_data)
@@ -120,14 +119,15 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
             # Answer 실행 전에 Offer 실행 여부 확인
             elif message_type == "answer":
-                call_id = data.get("call_id")
+                caller_id = data.get("caller_id")
+                receiver_id = data.get("receiver_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 # Answer는 Offer가 실행된 상태여야 함
                 if not redis_client.exists(f"offer:{call_id}"):
                     logging.warning(f"[answer] Offer가 실행되지 않음: {call_id}")
                     continue  # Offer가 없으면 Answer 실행 안 함
 
-                caller_id = data.get("caller_id")
                 response_data.update({"caller_id": caller_id, "call_id": call_id})
                 if caller_id in active_connections:
                     await active_connections[caller_id].send_json(response_data)
@@ -138,7 +138,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
             # ICE Candidate 실행 전에 Answer 실행 여부 확인
             elif message_type == "ice_candidate":
-                call_id = data.get("call_id")
+                caller_id = data.get("caller_id")
+                receiver_id = data.get("receiver_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 # ICE Candidate는 Answer가 실행된 상태여야 함
                 if not redis_client.exists(f"answer:{call_id}"):
@@ -147,11 +149,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     )
                     continue  # Answer가 없으면 ICE Candidate 실행 안 함
 
-                receiver_id = data.get("receiver_id")
                 response_data.update({"call_id": call_id})
                 if receiver_id in active_connections:
                     await active_connections[receiver_id].send_json(response_data)
                     logging.info(f"[ice_candidate] {call_id} ICE Candidate 전송 성공")
+
+                redis_client.setex(f"ice_candidate:{call_id}", 3600, "active")
 
     except WebSocketDisconnect:
         logging.info(f"{user_id} 연결 종료")
