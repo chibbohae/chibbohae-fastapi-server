@@ -72,11 +72,11 @@ def answer_call(
         db.commit()
         db.refresh(call)
 
-        # ✅ Redis에 call_id 저장 (1시간 후 자동 만료)
+        # ✅ Redis에 call_id 저장 (2시간 후 자동 만료)
 
         try:
             redis_client.setex(
-                f"accept:{call.caller_id}:{call.receiver_id}", 3600, call.call_id
+                f"accept:{call.caller_id}:{call.receiver_id}", 7200, call.call_id
             )
             logging.info(f"✅ Redis에 call_id 저장 완료: {call.call_id}")
         except Exception as e:
