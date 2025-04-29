@@ -30,7 +30,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
             response_data = {"type": message_type}
 
-            # 1️⃣ 통화 요청 (Incoming Call)
+            # 통화 요청 (Incoming Call)
             if message_type == "incoming_call":
                 receiver_id = data.get("receiver_id")
                 if not receiver_id:
@@ -49,7 +49,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         f"⚠️ [incoming_call] 수신자가 연결되지 않음: {receiver_id}"
                     )
 
-            # 2️⃣ 통화 거절 (Call Reject)
+            # 통화 거절 (Call Reject)
             elif message_type == "call_reject":
                 caller_id = data.get("caller_id")
                 if caller_id in active_connections:
@@ -60,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         f"⚠️ [call_reject] 발신자가 연결되지 않음: {caller_id}"
                     )
 
-            # 3️⃣ 통화 수락 (Call Answer) → Redis에서 call_id 가져옴
+            # 통화 수락 (Call Answer) → Redis에서 call_id 가져옴
             elif message_type == "call_answer":
                 caller_id = data.get("caller_id")
                 receiver_id = user_id  # 이 메시지는 수신자가 보내는 거니까!
@@ -85,7 +85,43 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         f"⚠️ [call_answer] 발신자가 연결되지 않음: {caller_id}"
                     )
 
-            # 4️⃣ Offer 전송 (WebRTC Offer) → Redis에서 call_id 가져옴
+            # 통화 종료 (Call End)
+            elif message_type == "call_end":
+
+                call_id = data.get("call_id")
+                caller_id = data.get("caller_id")
+                receiver_id = data.get("receiver_id")
+
+                # 종료 요청을 누가 보냈는지 확인
+                if user_id == caller_id:
+                    target_id = receiver_id
+
+                elif user_id == receiver_id:
+                    target_id = caller_id
+
+                else:
+                    logging.warning(f"🚨 [call_end] 비정상 요청: user_id={user_id}")
+                    continue
+
+                response_data.update(
+                    {
+                        "type": "call_end",
+                        "call_id": call_id,
+                        "from": user_id,  # 누가 끊었는지 알려주기
+                    }
+                )
+
+                if target_id in active_connections:
+                    await active_connections[target_id].send_json(response_data)
+                    logging.info(
+                        f"🔚 [call_end] {user_id}가 통화 종료함, 상대 {target_id}에게 알림 성공"
+                    )
+                else:
+                    logging.warning(
+                        f"⚠️ [call_end] 종료 통지하려 했지만 상대방 연결 없음: {target_id}"
+                    )
+
+            # Offer 전송 (WebRTC Offer) → Redis에서 call_id 가져옴
             elif message_type == "offer":
                 caller_id = data.get("caller_id")
                 receiver_id = data.get("receiver_id")
@@ -115,7 +151,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
                 redis_client.setex(f"offer:{call_id}", 3600, "active")
 
-            # 5️⃣ Answer 전송 (WebRTC Answer) → Redis에서 call_id 가져옴
+            # Answer 전송 (WebRTC Answer) → Redis에서 call_id 가져옴
             elif message_type == "answer":
                 caller_id = data.get("caller_id")
                 receiver_id = data.get("receiver_id")
@@ -144,7 +180,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
                 redis_client.setex(f"answer:{call_id}", 3600, "active")
 
-            # 6️⃣ ICE Candidate 전송 (WebRTC ICE Candidate) → Redis에서 call_id 가져옴
+            # ICE Candidate 전송 (WebRTC ICE Candidate) → Redis에서 call_id 가져옴
             elif message_type == "ice_candidate":
                 caller_id = data.get("caller_id")
                 receiver_id = data.get("receiver_id")
