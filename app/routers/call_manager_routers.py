@@ -84,7 +84,7 @@ def answer_call(
         db.commit()
         db.refresh(call)
 
-        return CallResponse(message="통화 수락됨", call_id=call.call_id)
+        return CallResponse(message="통화 수락됨", call_id=new_call_id)
 
     except Exception as e:
         db.rollback()
