@@ -65,22 +65,24 @@ def answer_call(
             db.commit()
             return CallResponse(message="통화 거절됨")
 
-        # ✅ 통화 수락 시 UUID 생성 및 KST 시간 기록
-        call.call_id = str(uuid.uuid4())
+        # UUID 먼저 변수에 생성
+        new_call_id = str(uuid.uuid4())
+
+        # Redis에 먼저 저장
+        try:
+            redis_client.setex(
+                f"accept:{call.caller_id}:{call.receiver_id}", 7200, new_call_id
+            )
+            logging.info(f"✅ Redis에 call_id 저장 완료: {new_call_id}")
+        except Exception as e:
+            logging.error(f"🚨 Redis 저장 실패: {e}")
+
+        # 그 다음 DB에 저장
+        call.call_id = new_call_id
         call.start_time = datetime.now(timezone.utc).astimezone(KST)
 
         db.commit()
         db.refresh(call)
-
-        # ✅ Redis에 call_id 저장 (2시간 후 자동 만료)
-
-        try:
-            redis_client.setex(
-                f"accept:{call.caller_id}:{call.receiver_id}", 7200, call.call_id
-            )
-            logging.info(f"✅ Redis에 call_id 저장 완료: {call.call_id}")
-        except Exception as e:
-            logging.error(f"🚨 Redis 저장 실패: {e}")
 
         return CallResponse(message="통화 수락됨", call_id=call.call_id)
 
@@ -104,7 +106,7 @@ def end_call(request: CallEndRequest, db: Session = Depends(get_db)) -> CallResp
         call.end_time = datetime.now(timezone.utc).astimezone(KST)
         db.commit()
 
-        # ✅ Redis에서 call_id 삭제
+        # Redis에서 call_id 삭제
         redis_client.delete(f"accept:{call.caller_id}:{call.receiver_id}")
 
         return CallResponse(message="통화 종료됨", call_id=call.call_id)
