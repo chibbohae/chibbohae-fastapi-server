@@ -88,9 +88,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             # 통화 종료 (Call End)
             elif message_type == "call_end":
 
-                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
                 caller_id = data.get("caller_id")
                 receiver_id = data.get("receiver_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 # 종료 요청을 누가 보냈는지 확인
                 if user_id == caller_id:
