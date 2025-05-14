@@ -66,13 +66,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = user_id  # 이 메시지는 수신자가 보내는 거니까!
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                # if not call_id:
-                #     logging.warning(
-                #         f"🚨 [call_answer] call_id 없음! caller_id={caller_id}, receiver_id={receiver_id}"
-                #     )
-                #     continue
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
+                if not call_id:
+                    logging.warning(
+                        f"🚨 [call_answer] call_id 없음! caller_id={caller_id}, receiver_id={receiver_id}"
+                    )
+                    continue
 
                 response_data.update({"caller_id": caller_id, "call_id": call_id})
 
@@ -128,8 +127,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = data.get("receiver_id")
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 if not call_id:
                     logging.warning(
@@ -160,8 +158,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = data.get("receiver_id")
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 if not call_id:
                     logging.warning(
@@ -191,8 +188,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = data.get("receiver_id")
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 if not call_id:
                     logging.warning(
