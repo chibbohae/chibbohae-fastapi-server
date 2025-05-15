@@ -3,6 +3,8 @@ import logging
 from typing import Dict
 from app.dependencies.redis_manager import redis_client
 import time
+import asyncio
+
 
 router = APIRouter(prefix="/signaling")
 
@@ -65,14 +67,19 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 caller_id = data.get("caller_id")
                 receiver_id = user_id  # 이 메시지는 수신자가 보내는 거니까!
 
-                # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                # if not call_id:
-                #     logging.warning(
-                #         f"🚨 [call_answer] call_id 없음! caller_id={caller_id}, receiver_id={receiver_id}"
-                #     )
-                #     continue
-                call_id = data.get("call_id")
+                # Redis에서 call_id 가져오기 (최대 10번 재시도, 0.3초 간격)
+                call_id = None
+                for attempt in range(10):
+                    call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
+                    if call_id:
+                        break
+                    await asyncio.sleep(0.3)
+
+                if not call_id:
+                    logging.warning(
+                        f"🚨 [call_answer] 10번시도 해도 redis 에서 call_id 못찾음..!! caller_id={caller_id}, receiver_id={receiver_id}"
+                    )
+                    continue
 
                 response_data.update({"caller_id": caller_id, "call_id": call_id})
 
@@ -88,10 +95,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
             # 통화 종료 (Call End)
             elif message_type == "call_end":
-
-                call_id = data.get("call_id")
                 caller_id = data.get("caller_id")
                 receiver_id = data.get("receiver_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 # 종료 요청을 누가 보냈는지 확인
                 if user_id == caller_id:
@@ -128,8 +134,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = data.get("receiver_id")
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 if not call_id:
                     logging.warning(
@@ -160,8 +165,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = data.get("receiver_id")
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 if not call_id:
                     logging.warning(
@@ -191,8 +195,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 receiver_id = data.get("receiver_id")
 
                 # Redis에서 call_id 가져오기
-                # call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
-                call_id = data.get("call_id")
+                call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
 
                 if not call_id:
                     logging.warning(
