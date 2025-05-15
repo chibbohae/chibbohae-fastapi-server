@@ -65,18 +65,31 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 caller_id = data.get("caller_id")
                 receiver_id = user_id  # 이 메시지는 수신자가 보내는 거니까!
 
+                # Redis에서 call_id 가져오기 (최대 10번 재시도, 0.3초 간격)
+                call_id = None
+                for attempt in range(10):
+                    call_id = redis_client.get(f"accept:{caller_id}:{receiver_id}")
+                    if call_id:
+                        break
+                    await asyncio.sleep(0.3)
+
+                if not call_id:
+                    logging.warning(
+                        f"🚨 [call_answer] 10번시도 해도 redis 에서 call_id 못찾음..!! caller_id={caller_id}, receiver_id={receiver_id}"
+                    )
+                    continue
+
                 response_data.update({"caller_id": caller_id, "call_id": call_id})
 
                 if caller_id in active_connections:
                     await active_connections[caller_id].send_json(response_data)
                     logging.info(
-                        f"✅ [call_answer] {caller_id} 통화 수락 성공"
+                        f"✅ [call_answer] {caller_id} 통화 수락 성공 (call_id: {call_id})"
                     )
                 else:
                     logging.warning(
                         f"⚠️ [call_answer] 발신자가 연결되지 않음: {caller_id}"
                     )
-
 
             # 통화 종료 (Call End)
             elif message_type == "call_end":
